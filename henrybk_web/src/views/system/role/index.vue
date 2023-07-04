@@ -1,0 +1,327 @@
+<template>
+  <div class="app-container">
+    <!--查询表单-->
+    <div class="search-div">
+      <el-form label-width="70px" size="small">
+        <el-row>
+          <el-row>
+            <el-col :span="6">
+              <el-form-item label="角色名称">
+                <el-input style="width: 95%" v-model="searchObj.roleName" placeholder="请输入角色名称"></el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="6">
+              <el-form-item label="角色编码">
+                <el-input style="width: 95%" v-model="searchObj.roleCode" placeholder="请输入角色编码"></el-input>
+              </el-form-item>
+            </el-col>
+            <el-col :span="6">
+              <el-form-item label="角色状态" prop="status">
+                <el-select id="status" v-model="searchObj.status" placeholder="角色状态" clearable style="width: 95%">
+                  <el-option v-for="dict in statusList" :key="dict.code" :label="dict.name"
+                    :value="dict.code" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="6">
+              <el-form-item label="操作时间">
+                <el-date-picker v-model="createTimes" type="datetimerange" range-separator="至" start-placeholder="开始时间"
+                  end-placeholder="结束时间" value-format="yyyy-MM-dd HH:mm:ss" style="margin-right: 10px;width: 100%;" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-row>
+        <el-row style="display:flex">
+          <el-button type="primary" icon="el-icon-search" size="mini" @click="fetchData()">搜索</el-button>
+          <el-button icon="el-icon-refresh" size="mini" @click="resetData">重置</el-button>
+        </el-row>
+      </el-form>
+    </div>
+
+    <!-- 工具条 -->
+    <div class="tools-div">
+      <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="add">添加</el-button>
+      <el-button type="danger" plain icon="el-icon-delete" size="mini" @click="batchRemove" :disabled="multiple">删除</el-button>
+      <el-button type="warning" plain icon="el-icon-download" size="mini" @click="download">导出</el-button>
+    </div>
+
+    <!-- 列表 -->
+    <el-table v-loading="listLoading" :data="list" style="width: 100%;margin-top: 10px;" 
+    :header-cell-style="{ background: '#f5f7fa', color: '#666464' }" @selection-change="handleSelectionChange">
+      <el-table-column type="selection" width="55" />
+      <el-table-column label="序号" width="70" align="center">
+        <template slot-scope="scope">
+          {{ (page - 1) * limit + scope.$index + 1 }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="roleName" label="角色名称" width="100" align="center" />
+      <el-table-column prop="roleCode" label="角色编码" width="120" align="center" />
+      <el-table-column prop="orderNum" label="显示顺序" width="100" align="center" />
+      <el-table-column label="状态" align="center" width="120">
+        <template slot-scope="scope">
+          <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0"
+            @change="handleStatusChange(scope.row)"></el-switch>
+        </template>
+      </el-table-column>
+      <el-table-column prop="remark" label="备注" width="160" align="center" />
+      <el-table-column prop="createTime" label="创建时间" width="160" align="center" />
+      <el-table-column prop="updateTime" label="更新时间" width="160" align="center" />
+
+      <!-- 操作栏 -->
+      <el-table-column label="操作" align="center" fixed="right" width="180">
+        <template slot-scope="scope">
+          <el-button type="text" icon="el-icon-edit" size="mini" @click="edit(scope.row.id)">修改</el-button>
+          <el-button type="text" icon="el-icon-delete" size="mini" @click="removeDataById(scope.row.id)">删除</el-button>
+          <el-dropdown @command="(command) => handleCommand(command, scope.row)">
+            <el-button size="mini" type="text" icon="el-icon-d-arrow-right">更多</el-button>
+            <el-dropdown-menu slot="dropdown">
+              <el-dropdown-item command="assignMenu" icon="el-icon-menu">分配菜单</el-dropdown-item>
+              <el-dropdown-item command="assignUser" icon="el-icon-user">分配用户</el-dropdown-item>
+            </el-dropdown-menu>
+          </el-dropdown>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <!-- 分页组件 -->
+    <el-pagination :current-page="page" :total="total" :page-size="limit" style="padding: 30px 0; text-align: center;"
+      layout="total, prev, pager, next, jumper" @current-change="fetchData" />
+
+    <!-- 弹出框 -->
+    <el-dialog :title="title" :visible.sync="dialogVisible" width="40%">
+      <el-form ref="dataForm" :model="saveOrUpdateForm" :rules="rules" label-width="100px" size="small" style="padding-right: 40px;">
+        <el-form-item label="角色名称" prop="roleName">
+          <el-input v-model="saveOrUpdateForm.roleName" />
+        </el-form-item>
+        <el-form-item label="角色编码" prop="roleCode">
+          <el-input v-model="saveOrUpdateForm.roleCode" />
+        </el-form-item>
+        <el-form-item label="显示顺序" prop="orderNum">
+          <el-input-number v-model="saveOrUpdateForm.orderNum" controls-position="right" :min="0" />
+        </el-form-item>
+        <el-form-item label="角色状态" prop="status">
+          <el-radio-group v-model="saveOrUpdateForm.status">
+            <el-radio v-for="item in statusList" :key="item.code * 1"
+              :label="item.code * 1">{{ item.name }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input v-model="saveOrUpdateForm.remark" type="textarea" placeholder="请输入内容" />
+        </el-form-item>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="dialogVisible = false" size="small" icon="el-icon-refresh-right">取 消</el-button>
+        <el-button type="primary" icon="el-icon-check" @click="saveOrUpdate()" size="small">确 定</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+  
+<script>
+import api from '@/api/system/role'
+import commonapi from '@/api/common'
+
+const defaultForm = {
+  id: null,
+  roleName: '',
+  roleCode: '',
+  orderNum: 0,
+  status: null,
+  remark: ''
+}
+export default {
+  data() {
+    return {
+      searchObj: {}, // 查询表单对象
+      statusList: [], // 状态列表
+      createTimes: [],// 创建时间搜索
+
+      multiple: true, // 多选框没选择时禁用按钮
+      ids: [], // 复选框选择内容ids数组
+
+      listLoading: true, // 数据是否正在加载
+      list: null, // banner列表
+
+      total: 0, // 数据库中的总记录数
+      page: 1, // 默认页码
+      limit: 10, // 每页记录数
+
+
+      title: '', // 弹出框标题
+      dialogVisible: false, // 弹出框是否显示
+      saveOrUpdateForm: defaultForm, //弹出框表单
+
+      // 表单校验
+      rules: {
+        roleName: [
+          { required: true, message: "角色名称不能为空", trigger: "blur" }
+        ],
+        roleCode: [
+          { required: true, message: "角色编码不能为空", trigger: "blur" }
+        ],
+        orderNum: [
+          { required: true, message: "显示顺序不能为空", trigger: "blur" }
+        ]
+      },
+
+
+    }
+  },
+
+  // 生命周期函数：内存准备完毕，页面尚未渲染
+  created() {
+    this.getDictList();
+    this.fetchData()
+  },
+
+  // 生命周期函数：内存准备完毕，页面渲染成功
+  mounted() {
+  },
+
+  methods: {
+    // 获取字典数据
+    getDictList() {
+      commonapi.getEnumList(null).then(resp => {
+        this.statusList = resp.data.list
+      })
+    },
+    // 分页查询
+    fetchData(page = 1) {
+      this.page = page
+      if (this.createTimes && this.createTimes.length == 2) {
+        this.searchObj.createTimeBegin = this.createTimes[0]
+        this.searchObj.createTimeEnd = this.createTimes[1]
+      }
+      api.getPageList(this.page, this.limit, this.searchObj).then(resp => {
+        this.list = resp.data.list
+        this.total = resp.data.total
+        // 数据加载并绑定成功
+        this.listLoading = false
+      })
+    },
+    // 重置查询表单
+    resetData() {
+      this.searchObj = {}
+      this.createTimes = []
+      this.fetchData()
+    },
+    // 弹出添加表单
+    add() {
+      this.dialogVisible = true
+      this.title = '添加角色信息'
+      this.saveOrUpdateForm = {orderNum:0,status:1}
+    },
+    // 编辑
+    edit(id) {
+      this.dialogVisible = true
+      this.title = '修改角色信息'
+      api.getById(id).then(resp => {
+        this.saveOrUpdateForm = resp.data.data
+      })
+    },
+    // 添加或修改
+    saveOrUpdate() {
+      this.$refs["dataForm"].validate((valid) => {
+          if (valid) {
+             if (!this.saveOrUpdateForm.id) {
+              this.save()
+            } else {
+              this.update()
+            }
+          } else {
+            this.$message.error('提交错误')
+            return false;
+          }
+      });
+    },
+    //添加
+    save() {
+      api.save(this.saveOrUpdateForm).then(resp => {
+        this.$message.success('添加成功')
+        this.dialogVisible = false
+        this.fetchData(this.page)
+      })
+    },
+    // 修改
+    update() {
+      api.updateById(this.saveOrUpdateForm).then(resp => {
+        this.$message.success('修改成功')
+        this.dialogVisible = false
+        this.fetchData(this.page)
+      })
+    },
+    // 更新状态
+    handleStatusChange(row) {
+      let text = row.status === 0 ? "停用" : "启用";
+      this.$myconfirm('确认要' + text + '[' + row.roleName + ']角色吗？').then(() => {
+        return api.updateStatus(row.id, row.status)
+      }).then(resp => {
+        this.$message.success(text + "成功")
+        this.fetchData()
+      }).catch(error => {
+        row.status = row.status === 0 ? 1 : 0;
+      });
+    },
+    // 根据id删除数据
+    removeDataById(id) {
+      this.$myconfirm('确认要删除该角色吗？').then(() => {
+        return api.removeById(id)
+      }).then(resp => {
+        this.$message.success("删除成功")
+        this.fetchData()
+      }).catch(error => {
+        this.$mymessage(error)
+      })
+    },
+    // 批量删除
+    batchRemove() {
+      if (this.ids.length == 0) {
+        this.$message.warning('请选择要删除的记录！')
+        return
+      }
+      this.$myconfirm('确认要删除已勾选的角色吗？').then(() => {
+        return api.batchRemove(this.ids)
+      }).then(resp => {
+        this.$message.success("删除成功")
+        this.fetchData()
+      }).catch(error => {
+        this.$mymessage(error)
+      })
+
+    },
+    // 导出
+    download(){
+      api.download().then()
+    },
+    // 更多操作触发
+    handleCommand(command, row) {
+      switch (command) {
+        case "assignMenu":
+          this.assignMenu(row);
+          break;
+        case "assignUser":
+          this.assignUser(row);
+          break;
+        default:
+          break;
+      }
+    },
+    //分配菜单
+    assignMenu(row) {
+      this.$router.push('/system/assignMenu?roleId='+row.id+'&roleName='+row.roleName+'&roleCode='+row.roleCode);
+    },
+    //分配用户
+    assignUser(row) {
+      this.$router.push('/system/assignUser?roleId='+row.id);
+    },
+
+
+    //复选框发生变化执行方法
+    handleSelectionChange(selection) {
+      this.ids = selection.map(item => item.id)
+      this.multiple = !selection.length
+    },
+
+  }
+}
+</script>

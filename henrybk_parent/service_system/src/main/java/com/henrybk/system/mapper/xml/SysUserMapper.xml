@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.henrybk.system.mapper.SysUserMapper">
+
+    <resultMap id="sysUserMap" type="com.henrybk.vo.vo.sys.SysUserVo" autoMapping="true"/>
+
+    <select id="selectPage" resultMap="sysUserMap">
+        SELECT
+            a.id,a.username,a.name,a.nick_name,a.dept_id,b.name AS dept_name,a.post_id,c.name AS post_name,
+            a.email,a.phone,a.gender,a.avatar,a.status,a.create_time,a.update_time,a.is_deleted
+        FROM sys_user a
+        LEFT JOIN sys_dept b ON a.dept_id = b.id
+        LEFT JOIN sys_post c ON a.post_id = c.id
+        <where>
+            <if test="vo.keyword != null and vo.keyword != ''">
+                AND (
+                    a.username like CONCAT('%',#{vo.keyword},'%')
+                    or a.name like CONCAT('%',#{vo.keyword},'%')
+                    or a.nick_name like CONCAT('%',#{vo.keyword},'%')
+                )
+            </if>
+            <if test="vo.status != null and vo.status != ''">
+                AND a.status = #{vo.status}
+            </if>
+            <if test="vo.createTimeBegin != null and vo.createTimeBegin != ''">
+                AND a.create_time >= #{vo.createTimeBegin}
+            </if>
+            <if test="vo.createTimeEnd != null and vo.createTimeEnd != ''">
+                AND a.create_time &lt;= #{vo.createTimeEnd}
+            </if>
+            <if test="vo.deptId != null and vo.deptId != ''">
+                AND a.dept_id in
+                <foreach collection="vo.deptIds" item="item" index="index" open="(" separator="," close=")">
+                    #{item}
+                </foreach>
+            </if>
+            AND a.is_deleted=0
+        </where>
+    </select>
+    <select id="selectUserVoList" resultType="com.henrybk.vo.easyexcel.SysUserEeVo">
+        SELECT
+            a.username,a.name,b.name AS dept_name,c.name AS post_name,a.email,a.phone,a.remark
+        FROM sys_user a
+        LEFT JOIN sys_dept b ON a.dept_id = b.id
+        LEFT JOIN sys_post c ON a.post_id = c.id
+        <where>
+            <if test="vo != null and vo.keyword != null and vo.keyword != ''">
+                AND (
+                a.username like CONCAT('%',#{vo.keyword},'%')
+                or a.name like CONCAT('%',#{vo.keyword},'%')
+                or a.nick_name like CONCAT('%',#{vo.keyword},'%')
+                )
+            </if>
+            <if test="vo != null and vo.createTimeBegin != null and vo.createTimeBegin != ''">
+                AND a.create_time >= #{vo.createTimeBegin}
+            </if>
+            <if test="vo != null and vo.createTimeEnd != null and vo.createTimeEnd != ''">
+                <![CDATA[ AND a.create_time <= #{vo.createTimeEnd}]]>
+            </if>
+            <if test="vo != null and vo.deptId != null and vo.deptId != ''">
+                AND a.dept_id in
+                <foreach collection="vo.deptIds" item="item" index="index" open="(" separator="," close=")">
+                    #{item}
+                </foreach>
+            </if>
+            AND a.is_deleted=0
+        </where>
+    </select>
+    <select id="getUserInfo" resultType="com.henrybk.vo.vo.sys.SysUserVo">
+        SELECT
+            a.id,a.username,a.name,a.nick_name,a.dept_id,b.name AS dept_name,a.post_id,c.name AS post_name,
+            a.email,a.phone,a.gender,a.avatar,a.status,a.remark,a.create_time,a.update_time
+        FROM sys_user a
+        LEFT JOIN sys_dept b ON a.dept_id = b.id
+        LEFT JOIN sys_post c ON a.post_id = c.id
+        WHERE a.id = #{userId}
+    </select>
+    <select id="getSystemData" resultType="java.util.Map">
+        SELECT
+            (select count(id) from sys_user) AS countUser,
+            (select count(id) from sys_login_log) AS countLogin,
+            (select count(oper_id) from sys_oper_log) AS countOper,
+            0 AS countTask
+    </select>
+    <select id="getUserByRole" resultType="java.util.Map">
+        SELECT
+            r.role_name AS name,
+            (SELECT
+                (LENGTH(config_value) - LENGTH(REPLACE(config_value, ';', '')))+1 AS num
+            FROM sys_config WHERE config_key = 'SUPER_ADMIN') AS value
+        FROM sys_role r
+        WHERE r.id = 1
+        UNION
+        SELECT
+            r.role_name AS name,
+            IFNULL(ur.num,0) AS value
+        FROM sys_role r
+        LEFT JOIN (SELECT role_id,COUNT(user_id) as num FROM sys_user_role GROUP BY role_id) ur ON ur.role_id = r.id
+        WHERE r.id != 1
+    </select>
+    <select id="getLoginStatistics" resultType="com.henrybk.vo.vo.sys.DateCountVo">
+        SELECT
+            DATE_FORMAT(login_time,'%Y-%m-%d') AS count_date,
+            COUNT(id) AS count_num
+        FROM sys_login_log
+        WHERE DATE_FORMAT(login_time,'%Y-%m-%d') > DATE_SUB(#{searchDate}, INTERVAL 7 DAY)
+        GROUP BY DATE_FORMAT(login_time,'%Y-%m-%d')
+    </select>
+    <select id="getOperStatistics" resultType="com.henrybk.vo.vo.sys.DateCountVo">
+        SELECT
+            DATE_FORMAT(oper_time,'%Y-%m-%d') AS count_date,
+            COUNT(oper_id) AS count_num
+        FROM sys_oper_log
+        WHERE DATE_FORMAT(oper_time,'%Y-%m-%d') > DATE_SUB(#{searchDate}, INTERVAL 7 DAY)
+        GROUP BY DATE_FORMAT(oper_time,'%Y-%m-%d')
+    </select>
+    <select id="selectMainConsoleCount" resultType="java.lang.Long">
+        SELECT
+            COUNT(u.id)
+        FROM sys_user u
+        JOIN sys_user_role ur ON u.id = ur.user_id AND ur.is_deleted = 0
+        JOIN sys_role_menu rm ON ur.role_id = rm.role_id AND rm.menu_id = 1001 AND rm.is_deleted = 0
+        WHERE u.id = #{userId} AND u.is_deleted = 0
+    </select>
+
+</mapper>

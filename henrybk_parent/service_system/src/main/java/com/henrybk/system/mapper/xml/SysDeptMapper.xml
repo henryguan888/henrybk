@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.henrybk.system.mapper.SysDeptMapper">
+
+
+    <select id="getDeptNameByUserName" resultType="java.util.HashMap">
+        SELECT
+            u.id as userId,d.name as deptName
+        FROM sys_user AS u
+        LEFT JOIN sys_dept AS d ON u.dept_id = d.id
+        WHERE u.username = #{username}
+    </select>
+</mapper>
